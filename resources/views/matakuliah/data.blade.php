@@ -109,10 +109,142 @@
             </table>
         </div>
     </div>
+
+    <a href="{{ route('matakuliah.print') }}" target="_blank">
+        Export PDF
+    </a>
+    <a href="{{ url('/matakuliah/export-csv') }}" target="_blank">
+        Export Excel
+    </a>
     @if($matakuliah->hasPages())
-    <div class="card-body border-top d-flex justify-content-end pt-3 pb-2" style="border-color:var(--border)!important;">
+    <div class="card-body border-top d-flex justify-content-end pt-3 pb-2 pagination-container" style="border-color:var(--border)!important;">
         {{ $matakuliah->links('pagination::bootstrap-5') }}
     </div>
     @endif
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.querySelector('input[name="search"]');
+    const form = searchInput?.closest('form');
+    const tableBody = document.querySelector('.dark-table tbody');
+    const card = document.querySelector('.dark-card');
+
+    if (!searchInput) return;
+
+    let debounceTimer;
+    
+    // Function to fetch and update table
+    const performSearch = (query) => {
+        const url = new URL(window.location.href);
+        if (query) {
+            url.searchParams.set('search', query);
+        } else {
+            url.searchParams.delete('search');
+        }
+        url.searchParams.delete('page'); // Reset to page 1 on new search
+
+        fetch(url)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // 1. Update Table Body
+                const newTableBody = doc.querySelector('.dark-table tbody');
+                if (tableBody && newTableBody) {
+                    tableBody.innerHTML = newTableBody.innerHTML;
+                }
+                
+                // 2. Update Pagination
+                const newPagination = doc.querySelector('.pagination-container');
+                const oldPagination = document.querySelector('.pagination-container');
+                
+                if (oldPagination) {
+                    if (newPagination) {
+                        oldPagination.outerHTML = newPagination.outerHTML;
+                    } else {
+                        oldPagination.remove();
+                    }
+                } else if (newPagination) {
+                    card?.appendChild(newPagination);
+                }
+
+                // 3. Update URL in browser history
+                window.history.pushState({ path: url.toString() }, '', url.toString());
+
+                // 4. Re-bind click events for new pagination links
+                bindPaginationLinks();
+            })
+            .catch(err => console.error('Error searching:', err));
+    };
+
+    // Prevent default form submit on Enter
+    form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        performSearch(searchInput.value.trim());
+    });
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const query = searchInput.value.trim();
+        if (query === '') {
+            performSearch('');
+        } else {
+            debounceTimer = setTimeout(() => {
+                performSearch(query);
+            }, 300);
+        }
+    });
+
+    // Helper to handle pagination links via AJAX
+    function bindPaginationLinks() {
+        const links = document.querySelectorAll('.pagination a.page-link');
+        links.forEach(link => {
+            const newLink = link.cloneNode(true);
+            link.parentNode.replaceChild(newLink, link);
+            
+            newLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                const pageUrl = this.getAttribute('href');
+                if (!pageUrl) return;
+
+                fetch(pageUrl)
+                    .then(res => res.text())
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        const newTableBody = doc.querySelector('.dark-table tbody');
+                        if (tableBody && newTableBody) {
+                            tableBody.innerHTML = newTableBody.innerHTML;
+                        }
+                        
+                        const newPagination = doc.querySelector('.pagination-container');
+                        const oldPagination = document.querySelector('.pagination-container');
+                        
+                        if (oldPagination) {
+                            if (newPagination) {
+                                oldPagination.outerHTML = newPagination.outerHTML;
+                            } else {
+                                oldPagination.remove();
+                            }
+                        } else if (newPagination) {
+                            card?.appendChild(newPagination);
+                        }
+
+                        window.history.pushState({ path: pageUrl }, '', pageUrl);
+                        bindPaginationLinks(); // Re-bind for new pagination
+                        
+                        document.querySelector('.dark-card')?.scrollIntoView({ behavior: 'smooth' });
+                    });
+            });
+        });
+    }
+
+    bindPaginationLinks();
+});
+</script>
+@endpush
 @endsection

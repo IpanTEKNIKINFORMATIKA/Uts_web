@@ -105,4 +105,62 @@ class JurusanController extends Controller
         return redirect()->route('jurusan.index')
             ->with('success', 'Data jurusan berhasil dihapus!');
     }
+
+    // PRINT CSV
+    public function exportCsv()
+    {
+        $fileName = 'jurusan.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ];
+
+        $callback = function () {
+            $file = fopen('php://output', 'w');
+
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($file, [
+                'ID',
+                'Nama Jurusan',
+                'Akreditasi',
+                'Jumlah Mahasiswa',
+                'Jumlah Mata Kuliah'
+            ], ';');
+
+            $jurusan = Jurusan::withCount(['mahasiswa', 'matakuliah'])->get();
+
+            foreach ($jurusan as $item) {
+                fputcsv($file, [
+                    $item->id_jurusan,
+                    $item->nama_jurusan,
+                    $item->akreditasi ?? '-',
+                    $item->mahasiswa_count,
+                    $item->matakuliah_count,
+                ], ';');
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function print()
+    {
+        $jurusan = Jurusan::withCount(['mahasiswa', 'matakuliah'])->get();
+
+        return view('jurusan.print', compact('jurusan'));
+    }
+
+    public function exportExcel()
+    {
+        $jurusan = Jurusan::withCount(['mahasiswa', 'matakuliah'])->get();
+
+        return response()
+            ->view('jurusan.excel', compact('jurusan'))
+            ->header('Content-Type', 'application/vnd.ms-excel')
+            ->header('Content-Disposition', 'attachment; filename=jurusan.xls');
+    }
 }

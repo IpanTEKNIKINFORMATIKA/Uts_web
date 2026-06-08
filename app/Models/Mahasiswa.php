@@ -16,12 +16,21 @@ class Mahasiswa extends Model
         'nim',
         'nama',
         'id_jurusan',
+        'jurusan',
     ];
 
     /**
      * Relasi: Mahasiswa milik satu Jurusan (Belongs To)
      */
     public function jurusan()
+    {
+        return $this->belongsTo(Jurusan::class, 'id_jurusan', 'id_jurusan');
+    }
+
+    /**
+     * Alias relasi untuk API
+     */
+    public function detail_jurusan()
     {
         return $this->belongsTo(Jurusan::class, 'id_jurusan', 'id_jurusan');
     }

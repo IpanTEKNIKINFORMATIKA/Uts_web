@@ -15,7 +15,7 @@ class MahasiswaController extends Controller
     {
         $search = $request->input('search');
 
-        $mahasiswa = Mahasiswa::with('jurusan')
+        $mahasiswa = Mahasiswa::with(['jurusan', 'detail_jurusan'])
             ->when($search, function ($query) use ($search) {
                 $query->where('nim', 'like', "%{$search}%")
                       ->orWhere('nama', 'like', "%{$search}%")
@@ -112,5 +112,60 @@ class MahasiswaController extends Controller
 
         return redirect()->route('mahasiswa.index')
             ->with('success', 'Data mahasiswa berhasil dihapus!');
+    }
+
+    public function exportCsv()
+    {
+        $fileName = 'mahasiswa.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ];
+
+        $callback = function () {
+            $file = fopen('php://output', 'w');
+
+            fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($file, [
+                'ID',
+                'NIM',
+                'Nama',
+                'Jurusan'
+            ], ';');
+
+            $mahasiswa = Mahasiswa::with('detail_jurusan')->get();
+
+            foreach ($mahasiswa as $item) {
+                fputcsv($file, [
+                    $item->id_mahasiswa,
+                    $item->nim,
+                    $item->nama,
+                    $item->detail_jurusan->nama_jurusan ?? $item->jurusan ?? '-',
+                ], ';');
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function print()
+    {
+        $mahasiswa = Mahasiswa::with('detail_jurusan')->get();
+
+        return view('mahasiswa.print', compact('mahasiswa'));
+    }
+
+    public function exportExcel()
+    {
+        $mahasiswa = Mahasiswa::with('detail_jurusan')->get();
+
+        return response()
+            ->view('mahasiswa.excel', compact('mahasiswa'))
+            ->header('Content-Type', 'application/vnd.ms-excel')
+            ->header('Content-Disposition', 'attachment; filename=mahasiswa.xls');
     }
 }
